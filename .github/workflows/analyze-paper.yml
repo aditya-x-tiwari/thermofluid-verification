@@ -1,0 +1,63 @@
+name: Analyze Validation Paper
+
+on:
+  workflow_dispatch:
+    inputs:
+      drive_url:
+        description: "Google Drive link to research paper PDF"
+        required: true
+        type: string
+
+jobs:
+
+  analyze:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download paper
+        env:
+          DRIVE_URL: ${{ inputs.drive_url }}
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          url = os.environ["DRIVE_URL"]
+
+          response = requests.get(url, allow_redirects=True)
+          response.raise_for_status()
+
+          with open("paper.pdf", "wb") as f:
+              f.write(response.content)
+
+          print("Downloaded paper.pdf")
+          PY
+
+      - name: Analyze paper
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python src/analyze_paper.py \
+            --pdf paper.pdf \
+            --output output
+
+      - name: Upload analysis artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-paper-analysis
+          path: output/
